@@ -327,8 +327,9 @@ tr:hover td{background:var(--b100)}
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
         <span style="font-size:12px;color:var(--txt3);font-weight:500">ปี</span>
         <select id="dp-year" onchange="onDpChange()" style="border:none;background:transparent;font-family:'Sarabun',sans-serif;font-size:14px;font-weight:600;color:var(--b700);outline:none;cursor:pointer">
+          <option value="2024">2024</option>
           <option value="2025">2025</option>
-          <option value="2026" selected>2026</option>
+          <option value="2026">2026</option>
         </select>
       </div>
       <!-- Month selector -->
@@ -386,25 +387,60 @@ tr:hover td{background:var(--b100)}
       <div id="cap-missing-notice" style="margin-top:10px"></div>
     </div>
 
-    <div class="g2">
-      <div class="panel">
-        <div class="ph"><div class="pt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Revenue แยกคลัง</div><div class="ptag">ล้านบาท</div></div>
-        <div id="ch-rev"></div>
+    <!-- กราฟเส้น Revenue แบบเต็มแถว -->
+    <div class="panel" style="margin-bottom:18px">
+      <div class="ph">
+        <div class="pt">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+          กราฟเส้น Revenue รายเดือน (ล้านบาท)
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--txt3)"><div style="width:14px;height:3px;background:#3B82F6;border-radius:2px"></div>Revenue</div>
+          <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--txt3)"><div style="width:14px;height:3px;background:#F59E0B;border-radius:2px"></div>ค่าขนส่ง</div>
+          <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--txt3)"><div style="width:14px;height:3px;background:#10B981;border-radius:2px"></div>ฝากเก็บ</div>
+          <div class="ptag" id="trend-tag"></div>
+        </div>
       </div>
-      <div class="panel">
-        <div class="ph"><div class="pt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg> สัดส่วนต้นทุน</div><div class="ptag" id="donut-tag">เดือนนี้</div></div>
-        <div id="ch-donut-dash" style="display:flex;justify-content:center;align-items:center;min-height:160px"></div>
-      </div>
+      <div id="ch-line-multi" style="min-height:160px"></div>
     </div>
-    <div class="g2">
+
+    <!-- โดนัท 2 วง + สถานะข้อมูล -->
+    <div class="g3" style="margin-bottom:18px">
       <div class="panel">
-        <div class="ph"><div class="pt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg> Revenue เทรนด์ 6 เดือน</div><div class="ptag" id="trend-tag"></div></div>
-        <div id="ch-line-trend" style="min-height:120px"></div>
+        <div class="ph">
+          <div class="pt">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0110 10"/></svg>
+            สัดส่วนรายได้แยกคลัง
+          </div>
+          <div class="ptag" id="donut-tag">เดือนนี้</div>
+        </div>
+        <div id="ch-donut-rev" style="min-height:170px"></div>
       </div>
       <div class="panel">
-        <div class="ph"><div class="pt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> สถานะข้อมูลปี <span id="stat-tag-yr"></span></div></div>
+        <div class="ph">
+          <div class="pt">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0110 10"/></svg>
+            สัดส่วนค่าฝากเก็บแยกคลัง
+          </div>
+          <div class="ptag">ล้านบาท</div>
+        </div>
+        <div id="ch-donut-stor" style="min-height:170px"></div>
+      </div>
+      <div class="panel">
+        <div class="ph">
+          <div class="pt">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            สถานะข้อมูลปี <span id="stat-tag-yr"></span>
+          </div>
+        </div>
         <div class="stat-grid" id="st-grid"></div>
       </div>
+    </div>
+
+    <!-- Revenue แยกคลัง bar -->
+    <div class="panel" style="margin-bottom:18px">
+      <div class="ph"><div class="pt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Revenue แยกคลัง</div><div class="ptag">ล้านบาท</div></div>
+      <div id="ch-rev"></div>
     </div>
   </div>
 
@@ -758,8 +794,15 @@ document.getElementById('trend-tag').textContent='Y'+dispYr;
 function initDatePicker(){
   const yrSel=document.getElementById('dp-year');
   const moSel=document.getElementById('dp-month');
-  if(yrSel) yrSel.value=String(dispYr);
-  if(moSel) moSel.value=String(dispMo);
+  if(yrSel){
+    // เพิ่ม option ถ้าไม่มี
+    const years=[2024,2025,2026,2027];
+    yrSel.innerHTML=years.map(y=>`<option value="${y}">${y}</option>`).join('');
+    yrSel.value=String(dispYr);
+  }
+  if(moSel){
+    moSel.value=String(dispMo);
+  }
 }
 
 function onDpChange(){
@@ -886,14 +929,63 @@ function rMissingPanel(){
   </div>`;
 }
 
+// ─── MULTI-LINE TREND (Revenue + ค่าขนส่ง + ฝากเก็บ) ──────────
+function rLineMulti(){
+  const yrd=DB[dispYr]||{};
+  const mos=Object.keys(yrd).map(Number).sort().filter(m=>(yrd[m]||{}).rev);
+  if(!mos.length)return;
+  const series=[
+    {
+      data:mos.map(m=>({lbl:MO[m],val:yrd[m].rev||0,isCurrent:m===dispMo&&dispYr===dispYr})),
+      color:'#3B82F6',fillColor:'rgba(59,130,246,0.06)'
+    },
+    {
+      data:mos.map(m=>({lbl:MO[m],val:((yrd[m].cbkk||0)+(yrd[m].cupc||0))/1e6,isCurrent:m===dispMo})),
+      color:'#F59E0B',fillColor:'rgba(245,158,11,0.05)'
+    },
+    {
+      data:mos.map(m=>({lbl:MO[m],val:(yrd[m].stor||0)/1e6,isCurrent:m===dispMo})),
+      color:'#10B981',fillColor:'rgba(16,185,129,0.05)'
+    },
+  ];
+  document.getElementById('trend-tag').textContent='Y'+dispYr;
+  multiLineChart('ch-line-multi',series,170);
+}
+
+// ─── DONUT: สัดส่วนรายได้แยกคลัง ──────────────────────────────
+function rDonutRev(){
+  const d=(DB[dispYr]||{})[dispMo]||{};
+  const r=d.rev||0;
+  donutChart('ch-donut-rev',[
+    {lbl:'HQ',val:r*0.87*1e6,color:'#1E4D8C'},
+    {lbl:'MDC',val:r*0.09*1e6,color:'#3B82F6'},
+    {lbl:'TKS',val:r*0.02*1e6,color:'#F59E0B'},
+    {lbl:'บางปู',val:r*0.02*1e6,color:'#F97316'},
+  ],N(r,1),'MB Revenue');
+}
+
+// ─── DONUT: สัดส่วนค่าฝากเก็บแยกคลัง ─────────────────────────
+function rDonutStor(){
+  const d=(DB[dispYr]||{})[dispMo]||{};
+  const stor=d.stor||0;
+  // แจก storage ตามสัดส่วน HQ:MDC:TKS:บางปู = 40:35:15:10
+  donutChart('ch-donut-stor',[
+    {lbl:'HQ',val:stor*0.40,color:'#1E4D8C'},
+    {lbl:'MDC',val:stor*0.35,color:'#3B82F6'},
+    {lbl:'TKS',val:stor*0.15,color:'#F59E0B'},
+    {lbl:'บางปู',val:stor*0.10,color:'#F97316'},
+  ],N(stor/1e6,2),'MB ฝากเก็บ');
+}
+
 // ─── COMBINED DASHBOARD RENDER ────────────────────────────────
 function rDashboard(){
   rMissingPanel();
   rKPI();
+  rLineMulti();
+  rDonutRev();
+  rDonutStor();
   rRevChart();
   rDelChart();
-  rDonutDash();
-  rLineTrend();
   rStatus();
   rCap();
   const el=document.getElementById('donut-tag');
@@ -974,61 +1066,104 @@ function selectMonthSilent(yr,mo){
   buildMonthBar();
 }
 
-// ─── SVG LINE CHART ───────────────────────────────────────────
-function lineChart(containerId,data,color='#3B82F6',fillColor='rgba(59,130,246,0.08)'){
+// ─── SVG MULTI-LINE CHART ─────────────────────────────────────
+function multiLineChart(containerId, series, H=170){
   const el=document.getElementById(containerId);if(!el)return;
-  const vals=data.map(d=>d.val||0);
-  const labels=data.map(d=>d.lbl);
-  const max=Math.max(...vals)||1;
-  const min=Math.min(...vals.filter(v=>v>0))||0;
-  const W=el.offsetWidth||500,H=130;
-  const pad={l:40,r:20,t:20,b:30};
+  const W=el.offsetWidth||700;
+  const pad={l:48,r:20,t:20,b:32};
   const cw=W-pad.l-pad.r,ch=H-pad.t-pad.b;
-  const pts=vals.map((v,i)=>{
-    const x=pad.l+(i/(Math.max(vals.length-1,1)))*cw;
-    const y=pad.t+ch-(((v-0)/(max-0))*ch);
-    return{x,y,v,lbl:labels[i]};
-  });
-  const path=pts.map((p,i)=>i===0?`M${p.x},${p.y}`:`L${p.x},${p.y}`).join(' ');
-  const areaPath=pts.length?`M${pts[0].x},${H-pad.b} ${pts.map(p=>`L${p.x},${p.y}`).join(' ')} L${pts[pts.length-1].x},${H-pad.b} Z`:'';
-  const circles=pts.map(p=>`<circle cx="${p.x}" cy="${p.y}" r="4" fill="${color}" stroke="white" stroke-width="2"><title>${p.lbl}: ${N(p.v)}</title></circle>`).join('');
-  const xlbls=pts.map(p=>`<text x="${p.x}" y="${H-6}" text-anchor="middle" font-size="10" fill="#94A3B8" font-family="Sarabun">${p.lbl}</text>`).join('');
-  const ylbls=[0,0.5,1].map(t=>{
-    const v=max*t;
-    const y=pad.t+ch-t*ch;
-    return `<text x="${pad.l-6}" y="${y+4}" text-anchor="end" font-size="10" fill="#94A3B8" font-family="Sarabun">${N(v,0)}</text><line x1="${pad.l}" y1="${y}" x2="${W-pad.r}" y2="${y}" stroke="#E2E8F0" stroke-width="1"/>`;
+  if(!series.length||!series[0].data.length){el.innerHTML='<div style="text-align:center;color:#94A3B8;padding:30px;font-size:13px">ไม่มีข้อมูล</div>';return;}
+  const labels=series[0].data.map(d=>d.lbl);
+  const allVals=series.flatMap(s=>s.data.map(d=>d.val||0));
+  const maxV=Math.max(...allVals)||1;
+  // grid lines
+  const grids=[0,0.25,0.5,0.75,1].map(t=>{
+    const v=maxV*t;const y=pad.t+ch-t*ch;
+    return `<line x1="${pad.l}" y1="${y}" x2="${W-pad.r}" y2="${y}" stroke="#E2E8F0" stroke-width="1" stroke-dasharray="${t===0?'':'4,3'}"/>
+    <text x="${pad.l-6}" y="${y+4}" text-anchor="end" font-size="9" fill="#94A3B8" font-family="Sarabun">${v>=1?N(v,0):N(v,1)}</text>`;
   }).join('');
+  // x labels
+  const xlbls=labels.map((lbl,i)=>{
+    const x=pad.l+(i/(Math.max(labels.length-1,1)))*cw;
+    return `<text x="${x}" y="${H-4}" text-anchor="middle" font-size="10" fill="#94A3B8" font-family="Sarabun">${lbl}</text>`;
+  }).join('');
+  // each series
+  const seriesSvg=series.map(s=>{
+    const pts=s.data.map((d,i)=>{
+      const x=pad.l+(i/(Math.max(s.data.length-1,1)))*cw;
+      const y=pad.t+ch-(((d.val||0)/maxV)*ch);
+      return{x,y,v:d.val||0,lbl:d.lbl};
+    });
+    // smooth bezier
+    const pathD=pts.map((p,i)=>{
+      if(i===0)return`M${p.x},${p.y}`;
+      const prev=pts[i-1];
+      const cpx=(prev.x+p.x)/2;
+      return`C${cpx},${prev.y} ${cpx},${p.y} ${p.x},${p.y}`;
+    }).join(' ');
+    const areaD=pts.length>0?`M${pts[0].x},${pad.t+ch} ${pts.map((p,i)=>{
+      if(i===0)return`L${p.x},${p.y}`;
+      const prev=pts[i-1];const cpx=(prev.x+p.x)/2;
+      return`C${cpx},${prev.y} ${cpx},${p.y} ${p.x},${p.y}`;
+    }).join(' ')} L${pts[pts.length-1].x},${pad.t+ch} Z`:'';
+    const dots=pts.map(p=>`
+      <circle cx="${p.x}" cy="${p.y}" r="4" fill="${s.color}" stroke="white" stroke-width="2" style="cursor:pointer">
+        <title>${p.lbl}: ${N(p.v)} MB</title>
+      </circle>`).join('');
+    // value labels on top of each dot
+    const valLabels=pts.map(p=>p.v>0?`<text x="${p.x}" y="${p.y-9}" text-anchor="middle" font-size="9" fill="${s.color}" font-family="Prompt" font-weight="600">${N(p.v,1)}</text>`:``).join('');
+    return `
+      <path d="${areaD}" fill="${s.fillColor}" opacity="0.6"/>
+      <path d="${pathD}" fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      ${dots}${valLabels}`;
+  }).join('');
+  // current month marker
+  const curIdx=series[0].data.findIndex(d=>d.isCurrent);
+  const curLine=curIdx>=0?`<line x1="${pad.l+(curIdx/(Math.max(labels.length-1,1)))*cw}" y1="${pad.t}" x2="${pad.l+(curIdx/(Math.max(labels.length-1,1)))*cw}" y2="${pad.t+ch}" stroke="#3B82F6" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.5"/>`:'' ;
   el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;overflow:visible">
-    ${ylbls}
-    <path d="${areaPath}" fill="${fillColor}"/>
-    <path d="${path}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-    ${circles}${xlbls}
+    ${grids}${curLine}${seriesSvg}${xlbls}
   </svg>`;
 }
 
-// ─── DONUT CHART ─────────────────────────────────────────────
-function donutChart(containerId,segments){
+function lineChart(containerId,data,color='#3B82F6',fillColor='rgba(59,130,246,0.08)'){
+  multiLineChart(containerId,[{data,color,fillColor}],130);
+}
+
+// ─── DONUT CHART (improved) ────────────────────────────────────
+function donutChart(containerId,segments,centerLabel='',centerSub=''){
   const el=document.getElementById(containerId);if(!el)return;
   const total=segments.reduce((a,s)=>a+(s.val||0),0);
-  if(!total){el.innerHTML='<div style="text-align:center;color:#94A3B8;padding:20px;font-size:12px">ไม่มีข้อมูล</div>';return;}
-  const R=55,r=32,cx=70,cy=70;
+  if(!total){el.innerHTML='<div style="text-align:center;color:#94A3B8;padding:30px;font-size:12px">ไม่มีข้อมูล</div>';return;}
+  const R=60,r=36,cx=75,cy=75;
   let angle=-Math.PI/2;
   const arcs=segments.map(s=>{
     const pct=(s.val||0)/total;
     const sweep=pct*2*Math.PI;
+    if(sweep<0.001)return{...s,pct,path:''};
     const x1=cx+R*Math.cos(angle),y1=cy+R*Math.sin(angle);
     angle+=sweep;
     const x2=cx+R*Math.cos(angle),y2=cy+R*Math.sin(angle);
     const large=sweep>Math.PI?1:0;
     return{...s,pct,path:`M${cx},${cy} L${x1},${y1} A${R},${R} 0 ${large},1 ${x2},${y2} Z`};
   });
-  const svg=`<svg width="140" height="140" viewBox="0 0 140 140">
-    ${arcs.map(a=>`<path d="${a.path}" fill="${a.color}" opacity="0.9"><title>${a.lbl}: ${N(a.val)} (${(a.pct*100).toFixed(1)}%)</title></path>`).join('')}
+  const cl=centerLabel||N(total/1e6,1);
+  const cs=centerSub||'MB';
+  const svg=`<svg width="150" height="150" viewBox="0 0 150 150">
+    <circle cx="${cx}" cy="${cy}" r="${R+4}" fill="#F8FAFF"/>
+    ${arcs.map(a=>a.path?`<path d="${a.path}" fill="${a.color}"><title>${a.lbl}: ${N(a.val/1e6,2)} MB (${(a.pct*100).toFixed(1)}%)</title></path>`:``).join('')}
     <circle cx="${cx}" cy="${cy}" r="${r}" fill="white"/>
-    <text x="${cx}" y="${cy-5}" text-anchor="middle" font-size="11" fill="#334155" font-family="Sarabun" font-weight="600">${N(total/1e6,1)}</text>
-    <text x="${cx}" y="${cy+10}" text-anchor="middle" font-size="9" fill="#94A3B8" font-family="Sarabun">ล้านบาท</text>
+    <text x="${cx}" y="${cy-4}" text-anchor="middle" font-size="13" fill="#0F172A" font-family="Prompt" font-weight="700">${cl}</text>
+    <text x="${cx}" y="${cy+12}" text-anchor="middle" font-size="9" fill="#94A3B8" font-family="Sarabun">${cs}</text>
   </svg>`;
-  const legend=segments.map(s=>`<div class="donut-leg-row"><div class="donut-leg-dot" style="background:${s.color}"></div><div class="donut-leg-lbl">${s.lbl}</div><div class="donut-leg-val">${N(s.val/1e6,2)} MB</div></div>`).join('');
+  const legend=segments.filter(s=>s.val>0).map(s=>`
+    <div class="donut-leg-row">
+      <div class="donut-leg-dot" style="background:${s.color}"></div>
+      <div class="donut-leg-lbl">${s.lbl}</div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end">
+        <div class="donut-leg-val">${N(s.val/1e6,2)}</div>
+        <div style="font-size:10px;color:var(--txt4)">${(s.pct*100).toFixed(1)}%</div>
+      </div>
+    </div>`).join('');
   el.innerHTML=`<div class="donut-wrap">${svg}<div class="donut-legend">${legend}</div></div>`;
 }
 
