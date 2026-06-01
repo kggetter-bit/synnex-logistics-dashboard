@@ -668,8 +668,182 @@ tr:hover td{background:var(--b100)}
     <div class="panel">
       <div class="fsec">💻 Apps Script Code</div>
       <div class="code-block" id="sc-pre">// ════════════════════════════════════════
-// SYNNEX Logistics — Apps Script (Read-Write Sync)
+// SYNNEX Logistics — Apps Script v2 (CORS Fixed)
 // ════════════════════════════════════════
+
+const HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type'
+};
+
+function doOptions() {
+  return ContentService
+    .createTextOutput('')
+    .setMimeType(ContentService.MimeType.TEXT);
+}
+
+function doPost(e) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const d = JSON.parse(e.postData.contents);
+    const shName = d.type === 'capacity'
+      ? 'CapacityData' : 'LogisticsData';
+    let sh = ss.getSheetByName(shName)
+      || ss.insertSheet(shName);
+
+    if (sh.getLastRow() === 0) {
+      if (d.type === 'capacity') {
+        sh.appendRow(['Year','Month',
+          'HQ_PalletUse','HQ_PalletCap','HQ_ToteUse','HQ_ToteCap',
+          'HQ_F1','HQ_F2Robot','HQ_F2ASRS','HQ_F3','HQ_F4',
+          'MDC_PalletUse','MDC_PalletCap','MDC_SKU',
+          'TKS_PalletUse','TKS_PalletCap','TKS_SKU',
+          'BP_PalletUse','BP_PalletCap','BP_SKU','Timestamp']);
+      } else {
+        sh.appendRow(['Year','Month','Warehouse',
+          'Revenue','Inventory','WorkingDays','COA',
+          'Orders','Items','CostBKK','CostUPC',
+          'DropBKK','DropUPC','Storage','PickPack','Timestamp']);
+      }
+    }
+
+    // หาแถวที่มี Year+Month ตรงกัน → update แทน append
+    const data = sh.getDataRange().getValues();
+    const headers = data[0];
+    const yrCol = headers.indexOf('Year');
+    const moCol = headers.indexOf('Month');
+    const whCol = headers.indexOf('Warehouse');
+    let targetRow = -1;
+    for (let i = 1; i < data.length; i++) {
+      if (d.type === 'capacity') {
+        if (data[i][yrCol] == d.yr && data[i][moCol] == d.mo) {
+          targetRow = i + 1; break;
+        }
+      } else {
+        if (data[i][yrCol] == d.yr && data[i][moCol] == d.mo
+            && data[i][whCol] == d.wh) {
+          targetRow = i + 1; break;
+        }
+      }
+    }
+
+    const ts = new Date();
+    let newRow;
+    if (d.type === 'capacity') {
+      newRow = [d.yr, d.mo,
+        d.hqPU||'', d.hqPC||'', d.hqTU||'', d.hqTC||'',
+        d.hqF1||'', d.hqF2r||'', d.hqF2a||'', d.hqF3||'', d.hqF4||'',
+        d.mdcPU||'', d.mdcPC||'', d.mdcSKU||'',
+        d.tksPU||'', d.tksPC||'', d.tksSKU||'',
+        d.bpPU||'', d.bpPC||'', d.bpSKU||'', ts];
+    } else {
+      newRow = [d.yr, d.mo, d.wh||'All',
+        d.rev||'', d.inv||'', d.wd||'', d.coa||'',
+        d.ord||'', d.itm||'', d.cbkk||'', d.cupc||'',
+        d.dbkk||'', d.dupc||'', d.stor||'', d.pp||'', ts];
+    }
+
+    if (targetRow > 0) {
+      sh.getRange(targetRow, 1, 1, newRow.length).setValues([newRow]);
+    } else {
+      sh.appendRow(newRow);
+    }
+
+    return ContentService
+      .createTextOutput(JSON.stringify({status:'ok'}))
+      .setMimeType(ContentService.MimeType.JSON);
+
+  } catch(err) {
+    return ContentService
+      .createTextOutput(JSON.stringify({status:'error', msg: err.toString()}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function doGet(e) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const action = e && e.parameter && e.parameter.action;
+
+  if (action === 'sync') {
+    const logSh = ss.getSheetByName('LogisticsData');
+    const capSh = ss.getSheetByName('CapacityData');
+    const logistics = {}, capacity = {};
+
+    if (logSh && logSh.getLastRow() > 1) {
+      const rows = logSh.getDataRange().getValues();
+      const h = rows[0];
+      const get = (row, key) => {
+        const i = h.indexOf(key);
+        return i >= 0 && row[i] !== '' ? row[i] : null;
+      };
+      for (let i = 1; i < rows.length; i++) {
+        const yr = Number(get(rows[i],'Year'));
+        const mo = Number(get(rows[i],'Month'));
+        if (!yr || !mo) continue;
+        if (!logistics[yr]) logistics[yr] = {};
+        logistics[yr][mo] = {
+          rev:  get(rows[i],'Revenue'),
+          inv:  get(rows[i],'Inventory'),
+          wd:   get(rows[i],'WorkingDays'),
+          coa:  get(rows[i],'COA'),
+          ord:  get(rows[i],'Orders'),
+          itm:  get(rows[i],'Items'),
+          cbkk: get(rows[i],'CostBKK'),
+          cupc: get(rows[i],'CostUPC'),
+          dbkk: get(rows[i],'DropBKK'),
+          dupc: get(rows[i],'DropUPC'),
+          stor: get(rows[i],'Storage'),
+          pp:   get(rows[i],'PickPack'),
+          wh:   get(rows[i],'Warehouse')
+        };
+      }
+    }
+
+    if (capSh && capSh.getLastRow() > 1) {
+      const rows = capSh.getDataRange().getValues();
+      const h = rows[0];
+      const get = (row, key) => {
+        const i = h.indexOf(key);
+        return i >= 0 && row[i] !== '' ? row[i] : null;
+      };
+      for (let i = 1; i < rows.length; i++) {
+        const yr = Number(get(rows[i],'Year'));
+        const mo = Number(get(rows[i],'Month'));
+        if (!yr || !mo) continue;
+        if (!capacity[yr]) capacity[yr] = {};
+        capacity[yr][mo] = {
+          hqPU: get(rows[i],'HQ_PalletUse'),
+          hqPC: get(rows[i],'HQ_PalletCap'),
+          hqTU: get(rows[i],'HQ_ToteUse'),
+          hqTC: get(rows[i],'HQ_ToteCap'),
+          hqF1: get(rows[i],'HQ_F1'),
+          hqF2r: get(rows[i],'HQ_F2Robot'),
+          hqF2a: get(rows[i],'HQ_F2ASRS'),
+          hqF3: get(rows[i],'HQ_F3'),
+          hqF4: get(rows[i],'HQ_F4'),
+          mdcPU: get(rows[i],'MDC_PalletUse'),
+          mdcPC: get(rows[i],'MDC_PalletCap'),
+          mdcSKU: get(rows[i],'MDC_SKU'),
+          tksPU: get(rows[i],'TKS_PalletUse'),
+          tksPC: get(rows[i],'TKS_PalletCap'),
+          tksSKU: get(rows[i],'TKS_SKU'),
+          bpPU: get(rows[i],'BP_PalletUse'),
+          bpPC: get(rows[i],'BP_PalletCap'),
+          bpSKU: get(rows[i],'BP_SKU')
+        };
+      }
+    }
+
+    return ContentService
+      .createTextOutput(JSON.stringify({status:'ok', logistics, capacity}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  return ContentService
+    .createTextOutput(JSON.stringify({status:'connected'}))
+    .setMimeType(ContentService.MimeType.JSON);
+}</div>
 
 function doPost(e) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -1350,7 +1524,7 @@ function saveCap(){
   if(!CAP[yr])CAP[yr]={};CAP[yr][mo]=Object.assign(CAP[yr][mo]||{},row);
   localStorage.setItem('lg7_cap',JSON.stringify(CAP));
   const ok=document.getElementById('cap-ok');ok.style.display='flex';setTimeout(()=>ok.style.display='none',3000);
-  if(CFG.gsUrl)fetch(CFG.gsUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'capacity',yr,mo,...row})}).catch(()=>{});
+  if(CFG.gsUrl) postToSheet({type:'capacity',yr,mo,...row});
   rCap();rKPI();
 }
 
@@ -1734,12 +1908,22 @@ function saveFrm(){
   if(!DB[yr])DB[yr]={};DB[yr][mo]=Object.assign(DB[yr][mo]||{},row);
   localStorage.setItem('lg7_db',JSON.stringify(DB));
   const ok=document.getElementById('save-ok');ok.style.display='flex';setTimeout(()=>ok.style.display='none',3000);
-  if(CFG.gsUrl)fetch(CFG.gsUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'logistics',yr,mo,...row})}).catch(()=>{});
+  if(CFG.gsUrl) postToSheet({type:'logistics',yr,mo,...row});
   buildMonthBar();rDashboard();rAlerts();
 }
 function clrFrm(){['e-rev','e-inv','e-wd','e-coa','e-ord','e-itm','e-cbkk','e-cupc','e-dbkk','e-dupc','e-stor','e-pp'].forEach(id=>document.getElementById(id).value='');}
 
-// ─── SETTINGS ────────────────────────────────────────────────
+// ─── POST TO GOOGLE SHEET ────────────────────────────────────
+function postToSheet(payload){
+  if(!CFG.gsUrl) return;
+  // ใช้ no-cors เพื่อหลีกเลี่ยงปัญหา CORS จาก GitHub Pages
+  fetch(CFG.gsUrl, {
+    method:'POST',
+    mode:'no-cors',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(payload)
+  }).catch(()=>{});
+}
 function saveCfg(){
   CFG.gsUrl=document.getElementById('gs-url').value;
   localStorage.setItem('lg7_cfg',JSON.stringify(CFG));
