@@ -278,6 +278,7 @@ tr:hover td{background:var(--b100)}
   <div class="top-r">
     <div class="wh-dots" id="wh-dots"></div>
     <div class="top-pill live">● Live</div>
+    <button onclick="syncFromSheet()" style="background:rgba(16,185,129,0.18);border:1px solid rgba(16,185,129,0.35);border-radius:20px;padding:5px 13px;font-size:12px;color:#6EE7B7;cursor:pointer;font-family:'Sarabun',sans-serif;display:flex;align-items:center;gap:5px" title="ดึงข้อมูลล่าสุดจาก Google Sheet">🔄 Sync Sheet</button>
     <div class="top-pill" id="hdr-mo"></div>
   </div>
 </div>
@@ -649,11 +650,13 @@ tr:hover td{background:var(--b100)}
       <div class="fsec">🔗 Google Sheet ฐานข้อมูล</div>
       <div class="info-box">💡 สร้าง Google ชีต → ส่วนขยาย → Apps Script → วางโค้ด → ทำให้ใช้งานได้ → ทุกคน → Copy URL</div>
       <div class="fgrp"><label>Apps Script URL</label><input type="text" id="gs-url" placeholder="https://script.google.com/macros/s/..."></div>
-      <div style="display:flex;gap:10px;margin-top:12px">
+      <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
         <button class="btn-b" onclick="saveCfg()">✅ บันทึก</button>
         <button class="btn-o" onclick="testCfg()">🔌 ทดสอบ</button>
+        <button class="btn-g" onclick="syncFromSheet()" style="background:linear-gradient(135deg,#10B981,#059669)">🔄 Sync จาก Sheet</button>
       </div>
       <div id="cfg-msg" style="font-size:13px;margin-top:12px;color:var(--txt3)"></div>
+      <div id="sync-msg" style="font-size:13px;margin-top:8px;display:none;align-items:center;gap:8px"></div>
       <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--bdr)">
         <div style="font-size:12px;color:var(--txt3);margin-bottom:10px;font-weight:500">จัดการข้อมูล</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -664,48 +667,147 @@ tr:hover td{background:var(--b100)}
     </div>
     <div class="panel">
       <div class="fsec">💻 Apps Script Code</div>
-      <div class="code-block" id="sc-pre">function doPost(e) {
+      <div class="code-block" id="sc-pre">// ════════════════════════════════════════
+// SYNNEX Logistics — Apps Script (Read-Write Sync)
+// ════════════════════════════════════════
+
+function doPost(e) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const d = JSON.parse(e.postData.contents);
   const shName = d.type === 'capacity'
     ? 'CapacityData' : 'LogisticsData';
   let sh = ss.getSheetByName(shName)
     || ss.insertSheet(shName);
+
+  // สร้าง header ถ้ายังไม่มี
   if (sh.getLastRow() === 0) {
     if (d.type === 'capacity') {
-      sh.appendRow(['Timestamp','Year','Month',
-        'HQ_PalletUse','HQ_PalletCap',
-        'HQ_ToteUse','HQ_ToteCap',
-        'HQ_F1','HQ_F2Robot','HQ_F2ASRS',
-        'HQ_F3','HQ_F4',
+      sh.appendRow(['Year','Month',
+        'HQ_PalletUse','HQ_PalletCap','HQ_ToteUse','HQ_ToteCap',
+        'HQ_F1','HQ_F2Robot','HQ_F2ASRS','HQ_F3','HQ_F4',
         'MDC_PalletUse','MDC_PalletCap','MDC_SKU',
         'TKS_PalletUse','TKS_PalletCap','TKS_SKU',
-        'BP_PalletUse','BP_PalletCap','BP_SKU']);
+        'BP_PalletUse','BP_PalletCap','BP_SKU','Timestamp']);
     } else {
-      sh.appendRow(['Timestamp','Year','Month',
-        'Warehouse','Revenue','Inventory',
-        'WorkingDays','COA','Orders','Items',
-        'CostBKK','CostUPC','DropBKK','DropUPC',
-        'Storage','PickPack']);
+      sh.appendRow(['Year','Month','Warehouse',
+        'Revenue','Inventory','WorkingDays','COA',
+        'Orders','Items','CostBKK','CostUPC',
+        'DropBKK','DropUPC','Storage','PickPack','Timestamp']);
     }
   }
-  if (d.type === 'capacity') {
-    sh.appendRow([new Date(),d.yr,d.mo,
-      d.hqPU,d.hqPC,d.hqTU,d.hqTC,
-      d.hqF1,d.hqF2r,d.hqF2a,d.hqF3,d.hqF4,
-      d.mdcPU,d.mdcPC,d.mdcSKU,
-      d.tksPU,d.tksPC,d.tksSKU,
-      d.bpPU,d.bpPC,d.bpSKU]);
-  } else {
-    sh.appendRow([new Date(),d.yr,d.mo,d.wh,
-      d.rev,d.inv,d.wd,d.coa,d.ord,d.itm,
-      d.cbkk,d.cupc,d.dbkk,d.dupc,d.stor,d.pp]);
+
+  // หาแถวที่มี Year+Month+Warehouse ตรงกัน → update แทน append
+  const data = sh.getDataRange().getValues();
+  const headers = data[0];
+  const yrCol = headers.indexOf('Year');
+  const moCol = headers.indexOf('Month');
+  const whCol = headers.indexOf('Warehouse');
+
+  let targetRow = -1;
+  for (let i = 1; i < data.length; i++) {
+    const rowYr = data[i][yrCol];
+    const rowMo = data[i][moCol];
+    if (d.type === 'capacity') {
+      if (rowYr == d.yr && rowMo == d.mo) { targetRow = i + 1; break; }
+    } else {
+      const rowWh = data[i][whCol];
+      if (rowYr == d.yr && rowMo == d.mo && rowWh == d.wh) { targetRow = i + 1; break; }
+    }
   }
+
+  const ts = new Date();
+  let newRow;
+  if (d.type === 'capacity') {
+    newRow = [d.yr, d.mo,
+      d.hqPU, d.hqPC, d.hqTU, d.hqTC,
+      d.hqF1, d.hqF2r, d.hqF2a, d.hqF3, d.hqF4,
+      d.mdcPU, d.mdcPC, d.mdcSKU,
+      d.tksPU, d.tksPC, d.tksSKU,
+      d.bpPU, d.bpPC, d.bpSKU, ts];
+  } else {
+    newRow = [d.yr, d.mo, d.wh,
+      d.rev, d.inv, d.wd, d.coa,
+      d.ord, d.itm, d.cbkk, d.cupc,
+      d.dbkk, d.dupc, d.stor, d.pp, ts];
+  }
+
+  if (targetRow > 0) {
+    // Update แถวเดิม
+    sh.getRange(targetRow, 1, 1, newRow.length).setValues([newRow]);
+  } else {
+    // เพิ่มแถวใหม่
+    sh.appendRow(newRow);
+  }
+
   return ContentService
     .createTextOutput(JSON.stringify({status:'ok'}))
     .setMimeType(ContentService.MimeType.JSON);
 }
-function doGet() {
+
+// ════════════════════════════════════════
+// doGet — ส่งข้อมูลทั้งหมดกลับให้โปรแกรม
+// ════════════════════════════════════════
+function doGet(e) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const action = e && e.parameter && e.parameter.action;
+
+  if (action === 'sync') {
+    // ดึงข้อมูล Logistics
+    const logSh = ss.getSheetByName('LogisticsData');
+    const capSh = ss.getSheetByName('CapacityData');
+    const logistics = {};
+    const capacity = {};
+
+    if (logSh && logSh.getLastRow() > 1) {
+      const rows = logSh.getDataRange().getValues();
+      const h = rows[0];
+      const get = (row, key) => { const i = h.indexOf(key); return i >= 0 ? row[i] : null; };
+      for (let i = 1; i < rows.length; i++) {
+        const r = rows[i];
+        const yr = Number(get(r,'Year'));
+        const mo = Number(get(r,'Month'));
+        if (!yr || !mo) continue;
+        if (!logistics[yr]) logistics[yr] = {};
+        logistics[yr][mo] = {
+          rev: get(r,'Revenue'), inv: get(r,'Inventory'),
+          wd: get(r,'WorkingDays'), coa: get(r,'COA'),
+          ord: get(r,'Orders'), itm: get(r,'Items'),
+          cbkk: get(r,'CostBKK'), cupc: get(r,'CostUPC'),
+          dbkk: get(r,'DropBKK'), dupc: get(r,'DropUPC'),
+          stor: get(r,'Storage'), pp: get(r,'PickPack'),
+          wh: get(r,'Warehouse')
+        };
+      }
+    }
+
+    if (capSh && capSh.getLastRow() > 1) {
+      const rows = capSh.getDataRange().getValues();
+      const h = rows[0];
+      const get = (row, key) => { const i = h.indexOf(key); return i >= 0 ? row[i] : null; };
+      for (let i = 1; i < rows.length; i++) {
+        const r = rows[i];
+        const yr = Number(get(r,'Year'));
+        const mo = Number(get(r,'Month'));
+        if (!yr || !mo) continue;
+        if (!capacity[yr]) capacity[yr] = {};
+        capacity[yr][mo] = {
+          hqPU: get(r,'HQ_PalletUse'), hqPC: get(r,'HQ_PalletCap'),
+          hqTU: get(r,'HQ_ToteUse'),   hqTC: get(r,'HQ_ToteCap'),
+          hqF1: get(r,'HQ_F1'), hqF2r: get(r,'HQ_F2Robot'),
+          hqF2a: get(r,'HQ_F2ASRS'), hqF3: get(r,'HQ_F3'), hqF4: get(r,'HQ_F4'),
+          mdcPU: get(r,'MDC_PalletUse'), mdcPC: get(r,'MDC_PalletCap'), mdcSKU: get(r,'MDC_SKU'),
+          tksPU: get(r,'TKS_PalletUse'), tksPC: get(r,'TKS_PalletCap'), tksSKU: get(r,'TKS_SKU'),
+          bpPU: get(r,'BP_PalletUse'),  bpPC: get(r,'BP_PalletCap'),   bpSKU: get(r,'BP_SKU')
+        };
+      }
+    }
+
+    return ContentService
+      .createTextOutput(JSON.stringify({status:'ok', logistics, capacity}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // ping ทดสอบ
   return ContentService
     .createTextOutput(JSON.stringify({status:'connected'}))
     .setMimeType(ContentService.MimeType.JSON);
@@ -1638,8 +1740,98 @@ function saveFrm(){
 function clrFrm(){['e-rev','e-inv','e-wd','e-coa','e-ord','e-itm','e-cbkk','e-cupc','e-dbkk','e-dupc','e-stor','e-pp'].forEach(id=>document.getElementById(id).value='');}
 
 // ─── SETTINGS ────────────────────────────────────────────────
-function saveCfg(){CFG.gsUrl=document.getElementById('gs-url').value;localStorage.setItem('lg7_cfg',JSON.stringify(CFG));document.getElementById('cfg-msg').innerHTML='<span style="color:var(--grn)">✅ บันทึกแล้ว</span>';}
-function testCfg(){const u=document.getElementById('gs-url').value;if(!u)return;document.getElementById('cfg-msg').textContent='กำลังทดสอบ...';fetch(u).then(r=>r.json()).then(()=>document.getElementById('cfg-msg').innerHTML='<span style="color:var(--grn)">✅ เชื่อมต่อสำเร็จ!</span>').catch(()=>document.getElementById('cfg-msg').innerHTML='<span style="color:var(--red)">❌ เชื่อมต่อไม่ได้</span>');}
+function saveCfg(){
+  CFG.gsUrl=document.getElementById('gs-url').value;
+  localStorage.setItem('lg7_cfg',JSON.stringify(CFG));
+  document.getElementById('cfg-msg').innerHTML='<span style="color:var(--grn)">✅ บันทึกแล้ว</span>';
+}
+function testCfg(){
+  const u=document.getElementById('gs-url').value;
+  if(!u)return;
+  document.getElementById('cfg-msg').textContent='กำลังทดสอบ...';
+  fetch(u)
+    .then(r=>r.json())
+    .then(()=>document.getElementById('cfg-msg').innerHTML='<span style="color:var(--grn)">✅ เชื่อมต่อสำเร็จ!</span>')
+    .catch(()=>document.getElementById('cfg-msg').innerHTML='<span style="color:var(--red)">❌ เชื่อมต่อไม่ได้</span>');
+}
+
+// ─── SYNC FROM GOOGLE SHEET ───────────────────────────────────
+function syncFromSheet(){
+  if(!CFG.gsUrl){
+    alert('กรุณาตั้งค่า Google Sheet URL ก่อน');
+    sw('settings',document.querySelectorAll('.nb')[6]);
+    return;
+  }
+  const msgEl=document.getElementById('sync-msg');
+  if(msgEl){msgEl.style.display='flex';msgEl.innerHTML='<span style="color:var(--b500)">⏳ กำลังดึงข้อมูลจาก Google Sheet...</span>';}
+
+  fetch(CFG.gsUrl+'?action=sync')
+    .then(r=>r.json())
+    .then(data=>{
+      if(data.status!=='ok') throw new Error('status not ok');
+
+      // merge ข้อมูลจาก Sheet เข้ากับ DB ที่มีอยู่
+      const remote=data.logistics||{};
+      const remoteCap=data.capacity||{};
+      let updLog=0, updCap=0;
+
+      // Logistics
+      Object.keys(remote).forEach(yr=>{
+        if(!DB[yr]) DB[yr]={};
+        Object.keys(remote[yr]).forEach(mo=>{
+          const rd=remote[yr][mo];
+          // แปลงค่า null string
+          const clean={};
+          Object.keys(rd).forEach(k=>{
+            const v=rd[k];
+            clean[k]=(v===null||v===''||v==='null')?null:
+                     (typeof v==='number'?v:
+                     (!isNaN(+v)&&v!==''?+v:v));
+          });
+          DB[yr][mo]=Object.assign(DB[yr][mo]||{},clean);
+          updLog++;
+        });
+      });
+
+      // Capacity
+      Object.keys(remoteCap).forEach(yr=>{
+        if(!CAP[yr]) CAP[yr]={};
+        Object.keys(remoteCap[yr]).forEach(mo=>{
+          const rd=remoteCap[yr][mo];
+          const clean={};
+          Object.keys(rd).forEach(k=>{
+            const v=rd[k];
+            clean[k]=(v===null||v==='')?null:(!isNaN(+v)&&v!==''?+v:v);
+          });
+          CAP[yr][mo]=Object.assign(CAP[yr][mo]||{},clean);
+          updCap++;
+        });
+      });
+
+      // บันทึกลง localStorage
+      localStorage.setItem('lg7_db',JSON.stringify(DB));
+      localStorage.setItem('lg7_cap',JSON.stringify(CAP));
+
+      if(msgEl){
+        msgEl.innerHTML=`<span style="color:var(--grn)">✅ Sync สำเร็จ! อัพเดท Logistics ${updLog} เดือน, Capacity ${updCap} เดือน</span>`;
+        setTimeout(()=>{if(msgEl)msgEl.style.display='none';},5000);
+      }
+
+      // refresh ทุกหน้า
+      buildMonthBar();
+      rDashboard();
+      rAlerts();
+      rCap();
+    })
+    .catch(err=>{
+      if(msgEl){
+        msgEl.innerHTML='<span style="color:var(--red)">❌ Sync ไม่สำเร็จ — ตรวจสอบ URL หรือ Deploy ใหม่</span>';
+        setTimeout(()=>{if(msgEl)msgEl.style.display='none';},6000);
+      }
+      console.error('Sync error:',err);
+    });
+}
+
 function cpSc(){navigator.clipboard.writeText(document.getElementById('sc-pre').textContent).then(()=>{const b=event.target;b.textContent='✅ คัดลอกแล้ว';setTimeout(()=>b.textContent='📋 คัดลอก',2000);});}
 function exportData(){const blob=new Blob([JSON.stringify({logistics:DB,capacity:CAP},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`synnex_${new Date().toISOString().slice(0,10)}.json`;a.click();}
 
@@ -1648,11 +1840,49 @@ initDatePicker();
 buildMonthBar();
 rAlerts();
 rCap();
-// ใช้ requestAnimationFrame เพื่อให้ DOM paint ก่อน SVG จะรู้ขนาด
+// ซิงค์จาก Sheet อัตโนมัติตอนเปิดโปรแกรม (ถ้ามี URL)
+if(CFG.gsUrl){
+  // sync เงียบๆ ตอนเปิด
+  fetch(CFG.gsUrl+'?action=sync')
+    .then(r=>r.json())
+    .then(data=>{
+      if(data.status!=='ok') return;
+      const remote=data.logistics||{};
+      const remoteCap=data.capacity||{};
+      Object.keys(remote).forEach(yr=>{
+        if(!DB[yr]) DB[yr]={};
+        Object.keys(remote[yr]).forEach(mo=>{
+          const rd=remote[yr][mo];
+          const clean={};
+          Object.keys(rd).forEach(k=>{
+            const v=rd[k];
+            clean[k]=(v===null||v===''||v==='null')?null:(!isNaN(+v)&&v!==''?+v:v);
+          });
+          DB[yr][mo]=Object.assign(DB[yr][mo]||{},clean);
+        });
+      });
+      Object.keys(remoteCap).forEach(yr=>{
+        if(!CAP[yr]) CAP[yr]={};
+        Object.keys(remoteCap[yr]).forEach(mo=>{
+          const rd=remoteCap[yr][mo];
+          const clean={};
+          Object.keys(rd).forEach(k=>{
+            const v=rd[k];
+            clean[k]=(v===null||v==='')?null:(!isNaN(+v)&&v!==''?+v:v);
+          });
+          CAP[yr][mo]=Object.assign(CAP[yr][mo]||{},clean);
+        });
+      });
+      localStorage.setItem('lg7_db',JSON.stringify(DB));
+      localStorage.setItem('lg7_cap',JSON.stringify(CAP));
+      buildMonthBar();rAlerts();rCap();
+      // re-render dashboard หลัง sync
+      setTimeout(rDashboard,80);
+    })
+    .catch(()=>{});
+}
 requestAnimationFrame(()=>{
-  setTimeout(()=>{
-    rDashboard();
-  }, 50);
+  setTimeout(()=>{ rDashboard(); }, 50);
 });
 </script>
 </body>
