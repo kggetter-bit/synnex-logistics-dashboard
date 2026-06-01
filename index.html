@@ -282,11 +282,6 @@ tr:hover td{background:var(--b100)}
   </div>
 </div>
 
-<!-- MONTH SELECTOR -->
-<div class="month-bar" id="month-bar">
-  <button class="mb-all active" id="btn-all" onclick="setViewAll()">📊 สะสมทุกเดือน</button>
-</div>
-
 <!-- NAV -->
 <div class="nav">
   <button class="nb active" onclick="sw('dashboard',this)">
@@ -323,16 +318,57 @@ tr:hover td{background:var(--b100)}
 
 <!-- ===== DASHBOARD ===== -->
 <div id="s-dashboard" class="sec active">
-  <div class="view-toggle">
-    <span class="vt-label">มุมมอง:</span>
-    <button class="vt-btn active" id="vt-month" onclick="setViewMonth()">📅 รายเดือน</button>
-    <button class="vt-btn" id="vt-all" onclick="setViewAll()">📊 สะสมทั้งหมด</button>
+
+  <!-- DATE PICKER BAR -->
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <!-- Year selector -->
+      <div style="display:flex;align-items:center;gap:6px;background:var(--g100);border:1.5px solid var(--bdr2);border-radius:10px;padding:6px 12px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <span style="font-size:12px;color:var(--txt3);font-weight:500">ปี</span>
+        <select id="dp-year" onchange="onDpChange()" style="border:none;background:transparent;font-family:'Sarabun',sans-serif;font-size:14px;font-weight:600;color:var(--b700);outline:none;cursor:pointer">
+          <option value="2025">2025</option>
+          <option value="2026" selected>2026</option>
+        </select>
+      </div>
+      <!-- Month selector -->
+      <div style="display:flex;align-items:center;gap:6px;background:var(--g100);border:1.5px solid var(--bdr2);border-radius:10px;padding:6px 12px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span style="font-size:12px;color:var(--txt3);font-weight:500">เดือน</span>
+        <select id="dp-month" onchange="onDpChange()" style="border:none;background:transparent;font-family:'Sarabun',sans-serif;font-size:14px;font-weight:600;color:var(--b700);outline:none;cursor:pointer">
+          <option value="1">มกราคม</option><option value="2">กุมภาพันธ์</option>
+          <option value="3">มีนาคม</option><option value="4">เมษายน</option>
+          <option value="5">พฤษภาคม</option><option value="6">มิถุนายน</option>
+          <option value="7">กรกฎาคม</option><option value="8">สิงหาคม</option>
+          <option value="9">กันยายน</option><option value="10">ตุลาคม</option>
+          <option value="11">พฤศจิกายน</option><option value="12">ธันวาคม</option>
+        </select>
+      </div>
+      <!-- Prev / Next buttons -->
+      <div style="display:flex;gap:4px">
+        <button onclick="stepMonth(-1)" style="width:34px;height:34px;border:1.5px solid var(--bdr2);border-radius:8px;background:var(--wh);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--txt2);font-size:16px" title="เดือนก่อน">‹</button>
+        <button onclick="stepMonth(1)" style="width:34px;height:34px;border:1.5px solid var(--bdr2);border-radius:8px;background:var(--wh);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--txt2);font-size:16px" title="เดือนถัดไป">›</button>
+      </div>
+      <!-- Current month shortcut -->
+      <button onclick="jumpToLatest()" style="padding:7px 14px;border:1.5px solid var(--b300);border-radius:10px;background:var(--b100);color:var(--b600);font-size:12px;font-weight:600;cursor:pointer;font-family:'Sarabun',sans-serif">
+        ล่าสุด
+      </button>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="vt-btn active" id="vt-month" onclick="setViewMonth()">📅 รายเดือน</button>
+      <button class="vt-btn" id="vt-all" onclick="setViewAll()">📊 สะสมทั้งหมด</button>
+    </div>
   </div>
 
   <!-- MONTH VIEW -->
   <div id="view-month">
+
+    <!-- MISSING DATA ALERT PANEL -->
+    <div id="dash-missing-panel" style="margin-bottom:18px"></div>
+
     <div class="kpi-wh-row" id="kpi-wh"></div>
     <div class="kpi-row" id="kpi-main"></div>
+
     <div class="panel" style="margin-bottom:18px">
       <div class="ph">
         <div class="pt">
@@ -349,13 +385,14 @@ tr:hover td{background:var(--b100)}
       <div id="dash-cap-bars"></div>
       <div id="cap-missing-notice" style="margin-top:10px"></div>
     </div>
+
     <div class="g2">
       <div class="panel">
         <div class="ph"><div class="pt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Revenue แยกคลัง</div><div class="ptag">ล้านบาท</div></div>
         <div id="ch-rev"></div>
       </div>
       <div class="panel">
-        <div class="ph"><div class="pt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg> สัดส่วนต้นทุน</div><div class="ptag">เดือนนี้</div></div>
+        <div class="ph"><div class="pt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg> สัดส่วนต้นทุน</div><div class="ptag" id="donut-tag">เดือนนี้</div></div>
         <div id="ch-donut-dash" style="display:flex;justify-content:center;align-items:center;min-height:160px"></div>
       </div>
     </div>
@@ -365,7 +402,7 @@ tr:hover td{background:var(--b100)}
         <div id="ch-line-trend" style="min-height:120px"></div>
       </div>
       <div class="panel">
-        <div class="ph"><div class="pt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> สถานะข้อมูลรายเดือน</div><div class="ptag" id="stat-tag"></div></div>
+        <div class="ph"><div class="pt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> สถานะข้อมูลปี <span id="stat-tag-yr"></span></div></div>
         <div class="stat-grid" id="st-grid"></div>
       </div>
     </div>
@@ -716,12 +753,160 @@ dispYr=latest.yr;dispMo=latest.mo;
 // ─── INIT ─────────────────────────────────────────────────────
 document.getElementById('hdr-mo').textContent=MOF[dispMo]+' '+dispYr;
 document.getElementById('trend-tag').textContent='Y'+dispYr;
-document.getElementById('stat-tag').textContent='Y'+dispYr;
+
+// ─── DATE PICKER INIT ─────────────────────────────────────────
+function initDatePicker(){
+  const yrSel=document.getElementById('dp-year');
+  const moSel=document.getElementById('dp-month');
+  if(yrSel) yrSel.value=String(dispYr);
+  if(moSel) moSel.value=String(dispMo);
+}
+
+function onDpChange(){
+  const yr=parseInt(document.getElementById('dp-year').value);
+  const mo=parseInt(document.getElementById('dp-month').value);
+  dispYr=yr; dispMo=mo;
+  document.getElementById('hdr-mo').textContent=MOF[mo]+' '+yr;
+  document.getElementById('trend-tag').textContent='Y'+yr;
+  rDashboard();
+  buildMonthBar();
+}
+
+function stepMonth(dir){
+  let mo=dispMo+dir, yr=dispYr;
+  if(mo<1){mo=12;yr--;}
+  if(mo>12){mo=1;yr++;}
+  dispYr=yr; dispMo=mo;
+  document.getElementById('dp-year').value=String(yr);
+  document.getElementById('dp-month').value=String(mo);
+  document.getElementById('hdr-mo').textContent=MOF[mo]+' '+yr;
+  document.getElementById('trend-tag').textContent='Y'+yr;
+  rDashboard();
+  buildMonthBar();
+}
+
+function jumpToLatest(){
+  const l=getLatestDataMonth();
+  dispYr=l.yr; dispMo=l.mo;
+  document.getElementById('dp-year').value=String(l.yr);
+  document.getElementById('dp-month').value=String(l.mo);
+  document.getElementById('hdr-mo').textContent=MOF[l.mo]+' '+l.yr;
+  document.getElementById('trend-tag').textContent='Y'+l.yr;
+  rDashboard();
+  buildMonthBar();
+}
+
+// ─── MISSING DATA PANEL (Dashboard) ──────────────────────────
+function rMissingPanel(){
+  const yr=dispYr, mo=dispMo;
+  const msLog=miss(yr,mo);
+  const msCap=missCap(yr,mo);
+  const cd=getCD(yr,mo);
+  const capWarn=[
+    {l:'HQ Pallet',p:cd.hqPC?(cd.hqPU||0)/cd.hqPC:0},
+    {l:'HQ Tote',p:cd.hqTC?(cd.hqTU||0)/cd.hqTC:0},
+    {l:'MDC',p:cd.mdcPC?(cd.mdcPU||0)/cd.mdcPC:0},
+    {l:'TKS',p:cd.tksPC?(cd.tksPU||0)/cd.tksPC:0},
+    {l:'บางปู',p:cd.bpPC?(cd.bpPU||0)/cd.bpPC:0},
+  ].filter(c=>c.p>=0.80);
+
+  const el=document.getElementById('dash-missing-panel');
+  if(!el) return;
+
+  const hasAny=msLog.length||msCap.length||capWarn.length;
+  if(!hasAny){
+    el.innerHTML=`<div style="background:#F0FDF4;border:1.5px solid #BBF7D0;border-radius:14px;padding:14px 18px;display:flex;align-items:center;gap:12px">
+      <span style="font-size:22px">✅</span>
+      <div>
+        <div style="font-family:'Prompt',sans-serif;font-size:14px;font-weight:700;color:#065F46">${MOF[mo]} ${yr} — ข้อมูลครบถ้วนทุกส่วน</div>
+        <div style="font-size:12px;color:#047857;margin-top:2px">ข้อมูล Logistics และ Capacity ของทุกคลังกรอกครบแล้ว</div>
+      </div>
+    </div>`;
+    return;
+  }
+
+  let rows='';
+
+  // Logistics missing
+  if(msLog.length){
+    rows+=`<div style="display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid #EFF6FF">
+      <div style="width:32px;height:32px;background:#EFF6FF;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px">📋</div>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:600;color:#1E4D8C;margin-bottom:5px">ข้อมูล Logistics ยังไม่ครบ ${msLog.length} รายการ</div>
+        <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:7px">
+          ${msLog.map(m=>`<span style="background:#DBEAFE;color:#1D4ED8;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:600">${m}</span>`).join('')}
+        </div>
+      </div>
+      <button onclick="goFill(${yr},${mo})" style="flex-shrink:0;padding:7px 14px;background:#2563B0;border:none;border-radius:9px;color:white;font-size:12px;font-weight:600;cursor:pointer;font-family:'Sarabun',sans-serif;white-space:nowrap">
+        ➜ กรอกข้อมูล
+      </button>
+    </div>`;
+  }
+
+  // Capacity missing
+  if(msCap.length){
+    rows+=`<div style="display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid #F5F3FF">
+      <div style="width:32px;height:32px;background:#F5F3FF;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px">🏭</div>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:600;color:#5B21B6;margin-bottom:5px">Capacity ยังไม่ได้กรอก ${msCap.length} รายการ</div>
+        <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:7px">
+          ${msCap.map(m=>`<span style="background:#EDE9FE;color:#6D28D9;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:600">${m}</span>`).join('')}
+        </div>
+      </div>
+      <button onclick="sw('capacity',document.querySelectorAll('.nb')[1])" style="flex-shrink:0;padding:7px 14px;background:#7C3AED;border:none;border-radius:9px;color:white;font-size:12px;font-weight:600;cursor:pointer;font-family:'Sarabun',sans-serif;white-space:nowrap">
+        ➜ กรอก Capacity
+      </button>
+    </div>`;
+  }
+
+  // Capacity over 80%
+  capWarn.forEach(c=>{
+    const col=c.p>=0.95?'#DC2626':'#D97706';
+    const bg=c.p>=0.95?'#FEE2E2':'#FEF3C7';
+    const bgLight=c.p>=0.95?'#FEF2F2':'#FFFBEB';
+    const icon=c.p>=0.95?'🚨':'⚠️';
+    rows+=`<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid ${bgLight}">
+      <div style="width:32px;height:32px;background:${bg};border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px">${icon}</div>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:600;color:${col}">${c.l} ใช้ไป <span style="font-family:'Prompt',sans-serif;font-size:15px">${(c.p*100).toFixed(1)}%</span> — ${c.p>=0.95?'วิกฤต ต้องดำเนินการด่วน':'เฝ้าระวัง'}</div>
+      </div>
+      <button onclick="sw('capacity',document.querySelectorAll('.nb')[1])" style="flex-shrink:0;padding:7px 14px;background:${col};border:none;border-radius:9px;color:white;font-size:12px;font-weight:600;cursor:pointer;font-family:'Sarabun',sans-serif;white-space:nowrap">
+        ➜ ดู Capacity
+      </button>
+    </div>`;
+  });
+
+  el.innerHTML=`<div style="background:var(--wh);border:1.5px solid #E2E8F0;border-radius:14px;padding:16px 20px;box-shadow:0 2px 8px rgba(15,36,68,0.06)">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding-bottom:10px;border-bottom:2px solid var(--g200)">
+      <span style="font-size:18px">📌</span>
+      <span style="font-family:'Prompt',sans-serif;font-size:15px;font-weight:700;color:var(--b800)">${MOF[mo]} ${yr} — พบข้อมูลที่ยังไม่ครบ</span>
+      <span style="background:#FEE2E2;color:#DC2626;border-radius:8px;padding:2px 10px;font-size:12px;font-weight:700;margin-left:auto">${msLog.length+msCap.length+capWarn.length} รายการ</span>
+    </div>
+    ${rows}
+  </div>`;
+}
+
+// ─── COMBINED DASHBOARD RENDER ────────────────────────────────
+function rDashboard(){
+  rMissingPanel();
+  rKPI();
+  rRevChart();
+  rDelChart();
+  rDonutDash();
+  rLineTrend();
+  rStatus();
+  rCap();
+  const el=document.getElementById('donut-tag');
+  if(el) el.textContent=MOF[dispMo]+' '+dispYr;
+  const el2=document.getElementById('stat-tag-yr');
+  if(el2) el2.textContent=dispYr;
+}
 document.getElementById('wh-dots').innerHTML=WH_KEYS.map((k,i)=>`<div class="wh-dot" style="background:${WH_COLS[i]}" title="${WH_LBL[i]}"></div>`).join('');
 
 // Build month bar
 function buildMonthBar(){
   const bar=document.getElementById('month-bar');
+  if(!bar) return;
   const existing=[...bar.querySelectorAll('.mb-item')];
   existing.forEach(e=>e.remove());
   const months=[];
@@ -1231,11 +1416,50 @@ function rAn(tab){
 }
 
 // ─── NAV ─────────────────────────────────────────────────────
+function selectMonth(yr,mo){
+  viewMode='month';dispYr=yr;dispMo=mo;
+  document.getElementById('btn-all').classList.remove('active');
+  document.getElementById('vt-month').classList.add('active');
+  document.getElementById('vt-all').classList.remove('active');
+  document.getElementById('view-month').style.display='block';
+  document.getElementById('view-all').style.display='none';
+  document.getElementById('hdr-mo').textContent=MOF[mo]+' '+yr;
+  document.getElementById('trend-tag').textContent='Y'+yr;
+  const dpY=document.getElementById('dp-year');
+  const dpM=document.getElementById('dp-month');
+  if(dpY) dpY.value=String(yr);
+  if(dpM) dpM.value=String(mo);
+  rDashboard();
+  buildMonthBar();
+}
+
+function setViewAll(){
+  viewMode='all';
+  document.querySelectorAll('.mb-item').forEach(b=>b.classList.remove('active'));
+  document.getElementById('btn-all').classList.add('active');
+  document.getElementById('vt-all').classList.add('active');
+  document.getElementById('vt-month').classList.remove('active');
+  document.getElementById('view-month').style.display='none';
+  document.getElementById('view-all').style.display='block';
+  rCumCards();rLineAll();
+}
+
+function setViewMonth(){
+  viewMode='month';
+  document.getElementById('btn-all').classList.remove('active');
+  document.getElementById('vt-month').classList.add('active');
+  document.getElementById('vt-all').classList.remove('active');
+  document.getElementById('view-month').style.display='block';
+  document.getElementById('view-all').style.display='none';
+  rDashboard();
+}
+
 function sw(t,el){
   document.querySelectorAll('.sec').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.nb').forEach(x=>x.classList.remove('active'));
   document.getElementById('s-'+t).classList.add('active');
   el.classList.add('active');
+  if(t==='dashboard') rDashboard();
   if(t==='history')rHist();
   if(t==='analysis')swAn('cost',document.querySelector('.an-t'));
   if(t==='capacity'){rCap();loadCap();}
@@ -1267,7 +1491,7 @@ function saveFrm(){
   localStorage.setItem('lg7_db',JSON.stringify(DB));
   const ok=document.getElementById('save-ok');ok.style.display='flex';setTimeout(()=>ok.style.display='none',3000);
   if(CFG.gsUrl)fetch(CFG.gsUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'logistics',yr,mo,...row})}).catch(()=>{});
-  buildMonthBar();rKPI();rRevChart();rDelChart();rTrend();rStatus();rDonutDash();rLineTrend();rAlerts();
+  buildMonthBar();rDashboard();rAlerts();
 }
 function clrFrm(){['e-rev','e-inv','e-wd','e-coa','e-ord','e-itm','e-cbkk','e-cupc','e-dbkk','e-dupc','e-stor','e-pp'].forEach(id=>document.getElementById(id).value='');}
 
@@ -1278,8 +1502,11 @@ function cpSc(){navigator.clipboard.writeText(document.getElementById('sc-pre').
 function exportData(){const blob=new Blob([JSON.stringify({logistics:DB,capacity:CAP},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`synnex_${new Date().toISOString().slice(0,10)}.json`;a.click();}
 
 // ─── INIT RENDER ─────────────────────────────────────────────
+initDatePicker();
 buildMonthBar();
-rKPI();rRevChart();rDelChart();rDonutDash();rLineTrend();rStatus();rAlerts();rCap();
+rDashboard();
+rAlerts();
+rCap();
 </script>
 </body>
 </html>
