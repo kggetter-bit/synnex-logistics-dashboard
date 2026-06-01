@@ -1068,103 +1068,110 @@ function selectMonthSilent(yr,mo){
 
 // ─── SVG MULTI-LINE CHART ─────────────────────────────────────
 function multiLineChart(containerId, series, H=170){
-  const el=document.getElementById(containerId);if(!el)return;
-  const W=el.offsetWidth||700;
-  const pad={l:48,r:20,t:20,b:32};
-  const cw=W-pad.l-pad.r,ch=H-pad.t-pad.b;
-  if(!series.length||!series[0].data.length){el.innerHTML='<div style="text-align:center;color:#94A3B8;padding:30px;font-size:13px">ไม่มีข้อมูล</div>';return;}
+  const el=document.getElementById(containerId);
+  if(!el)return;
+  // ใช้ 600 เป็น default ถ้า offsetWidth = 0
+  const W=Math.max(el.getBoundingClientRect().width||el.offsetWidth||600,200);
+  const pad={l:44,r:16,t:24,b:32};
+  const cw=W-pad.l-pad.r, ch=H-pad.t-pad.b;
+  if(!series.length||!series[0].data.length){
+    el.innerHTML='<div style="text-align:center;color:#94A3B8;padding:30px;font-size:13px">ไม่มีข้อมูล</div>';return;
+  }
   const labels=series[0].data.map(d=>d.lbl);
-  const allVals=series.flatMap(s=>s.data.map(d=>d.val||0));
-  const maxV=Math.max(...allVals)||1;
-  // grid lines
-  const grids=[0,0.25,0.5,0.75,1].map(t=>{
-    const v=maxV*t;const y=pad.t+ch-t*ch;
-    return `<line x1="${pad.l}" y1="${y}" x2="${W-pad.r}" y2="${y}" stroke="#E2E8F0" stroke-width="1" stroke-dasharray="${t===0?'':'4,3'}"/>
-    <text x="${pad.l-6}" y="${y+4}" text-anchor="end" font-size="9" fill="#94A3B8" font-family="Sarabun">${v>=1?N(v,0):N(v,1)}</text>`;
-  }).join('');
-  // x labels
-  const xlbls=labels.map((lbl,i)=>{
-    const x=pad.l+(i/(Math.max(labels.length-1,1)))*cw;
-    return `<text x="${x}" y="${H-4}" text-anchor="middle" font-size="10" fill="#94A3B8" font-family="Sarabun">${lbl}</text>`;
-  }).join('');
-  // each series
-  const seriesSvg=series.map(s=>{
-    const pts=s.data.map((d,i)=>{
-      const x=pad.l+(i/(Math.max(s.data.length-1,1)))*cw;
-      const y=pad.t+ch-(((d.val||0)/maxV)*ch);
-      return{x,y,v:d.val||0,lbl:d.lbl};
+  const allVals=series.flatMap(s=>s.data.map(d=>d.val||0)).filter(v=>v>0);
+  const maxV=allVals.length?Math.max(...allVals):1;
+  const n=labels.length;
+  const xPos=(i)=>pad.l+(n>1?i/(n-1)*cw:cw/2);
+  const yPos=(v)=>pad.t+ch-((v||0)/maxV*ch);
+
+  // grid + y-labels
+  let svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" style="width:100%;display:block;overflow:visible">`;
+  [0,0.25,0.5,0.75,1].forEach(t=>{
+    const v=+(maxV*t).toFixed(1);
+    const y=pad.t+ch-t*ch;
+    svg+=`<line x1="${pad.l}" y1="${y}" x2="${W-pad.r}" y2="${y}" stroke="#E2E8F0" stroke-width="1"/>`;
+    svg+=`<text x="${pad.l-5}" y="${y+4}" text-anchor="end" font-size="10" fill="#94A3B8" font-family="Sarabun,sans-serif">${v>=1?Math.round(v):v}</text>`;
+  });
+
+  // x-labels
+  labels.forEach((lbl,i)=>{
+    svg+=`<text x="${xPos(i)}" y="${H-4}" text-anchor="middle" font-size="10" fill="#94A3B8" font-family="Sarabun,sans-serif">${lbl}</text>`;
+  });
+
+  // series
+  series.forEach(s=>{
+    const pts=s.data.map((d,i)=>({x:xPos(i),y:yPos(d.val),v:d.val||0,lbl:d.lbl,isCur:d.isCurrent}));
+    if(pts.length<2){
+      pts.forEach(p=>{ svg+=`<circle cx="${p.x}" cy="${p.y}" r="5" fill="${s.color}" stroke="white" stroke-width="2"/>`; });
+      return;
+    }
+    // area path
+    let areaD=`M${pts[0].x},${pad.t+ch}`;
+    pts.forEach(p=>{ areaD+=` L${p.x},${p.y}`; });
+    areaD+=` L${pts[pts.length-1].x},${pad.t+ch} Z`;
+    svg+=`<path d="${areaD}" fill="${s.fillColor}"/>`;
+    // line path (polyline — ไม่ใช้ bezier เพื่อความเสถียร)
+    const lineD=pts.map((p,i)=>`${i===0?'M':'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+    svg+=`<path d="${lineD}" fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+    // dots + value labels
+    pts.forEach(p=>{
+      svg+=`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${p.isCur?6:4}" fill="${s.color}" stroke="white" stroke-width="2"><title>${p.lbl}: ${p.v>=1?p.v.toFixed(2):p.v.toFixed(3)} MB</title></circle>`;
+      if(p.v>0) svg+=`<text x="${p.x.toFixed(1)}" y="${(p.y-10).toFixed(1)}" text-anchor="middle" font-size="9" fill="${s.color}" font-family="Prompt,sans-serif" font-weight="600">${p.v>=1?p.v.toFixed(1):p.v.toFixed(2)}</text>`;
     });
-    // smooth bezier
-    const pathD=pts.map((p,i)=>{
-      if(i===0)return`M${p.x},${p.y}`;
-      const prev=pts[i-1];
-      const cpx=(prev.x+p.x)/2;
-      return`C${cpx},${prev.y} ${cpx},${p.y} ${p.x},${p.y}`;
-    }).join(' ');
-    const areaD=pts.length>0?`M${pts[0].x},${pad.t+ch} ${pts.map((p,i)=>{
-      if(i===0)return`L${p.x},${p.y}`;
-      const prev=pts[i-1];const cpx=(prev.x+p.x)/2;
-      return`C${cpx},${prev.y} ${cpx},${p.y} ${p.x},${p.y}`;
-    }).join(' ')} L${pts[pts.length-1].x},${pad.t+ch} Z`:'';
-    const dots=pts.map(p=>`
-      <circle cx="${p.x}" cy="${p.y}" r="4" fill="${s.color}" stroke="white" stroke-width="2" style="cursor:pointer">
-        <title>${p.lbl}: ${N(p.v)} MB</title>
-      </circle>`).join('');
-    // value labels on top of each dot
-    const valLabels=pts.map(p=>p.v>0?`<text x="${p.x}" y="${p.y-9}" text-anchor="middle" font-size="9" fill="${s.color}" font-family="Prompt" font-weight="600">${N(p.v,1)}</text>`:``).join('');
-    return `
-      <path d="${areaD}" fill="${s.fillColor}" opacity="0.6"/>
-      <path d="${pathD}" fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-      ${dots}${valLabels}`;
-  }).join('');
-  // current month marker
-  const curIdx=series[0].data.findIndex(d=>d.isCurrent);
-  const curLine=curIdx>=0?`<line x1="${pad.l+(curIdx/(Math.max(labels.length-1,1)))*cw}" y1="${pad.t}" x2="${pad.l+(curIdx/(Math.max(labels.length-1,1)))*cw}" y2="${pad.t+ch}" stroke="#3B82F6" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.5"/>`:'' ;
-  el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;overflow:visible">
-    ${grids}${curLine}${seriesSvg}${xlbls}
-  </svg>`;
+    // current month vertical marker
+    const curPt=pts.find(p=>p.isCur);
+    if(curPt) svg+=`<line x1="${curPt.x.toFixed(1)}" y1="${pad.t}" x2="${curPt.x.toFixed(1)}" y2="${pad.t+ch}" stroke="${s.color}" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.4"/>`;
+  });
+
+  svg+='</svg>';
+  el.innerHTML=svg;
 }
 
 function lineChart(containerId,data,color='#3B82F6',fillColor='rgba(59,130,246,0.08)'){
   multiLineChart(containerId,[{data,color,fillColor}],130);
 }
 
-// ─── DONUT CHART (improved) ────────────────────────────────────
-function donutChart(containerId,segments,centerLabel='',centerSub=''){
-  const el=document.getElementById(containerId);if(!el)return;
+// ─── DONUT CHART ──────────────────────────────────────────────
+function donutChart(containerId,segments,centerLabel,centerSub){
+  const el=document.getElementById(containerId);
+  if(!el)return;
   const total=segments.reduce((a,s)=>a+(s.val||0),0);
-  if(!total){el.innerHTML='<div style="text-align:center;color:#94A3B8;padding:30px;font-size:12px">ไม่มีข้อมูล</div>';return;}
-  const R=60,r=36,cx=75,cy=75;
+  if(!total){
+    el.innerHTML='<div style="text-align:center;color:#94A3B8;padding:30px;font-size:12px">ไม่มีข้อมูล</div>';return;
+  }
+  const R=54,r=33,cx=70,cy=70;
   let angle=-Math.PI/2;
-  const arcs=segments.map(s=>{
+  let arcsSvg='';
+  const arcData=segments.map(s=>{
     const pct=(s.val||0)/total;
     const sweep=pct*2*Math.PI;
-    if(sweep<0.001)return{...s,pct,path:''};
-    const x1=cx+R*Math.cos(angle),y1=cy+R*Math.sin(angle);
+    if(sweep<0.001)return{...s,pct};
+    const x1=cx+R*Math.cos(angle), y1=cy+R*Math.sin(angle);
     angle+=sweep;
-    const x2=cx+R*Math.cos(angle),y2=cy+R*Math.sin(angle);
+    const x2=cx+R*Math.cos(angle), y2=cy+R*Math.sin(angle);
     const large=sweep>Math.PI?1:0;
-    return{...s,pct,path:`M${cx},${cy} L${x1},${y1} A${R},${R} 0 ${large},1 ${x2},${y2} Z`};
+    arcsSvg+=`<path d="M${cx},${cy} L${x1.toFixed(2)},${y1.toFixed(2)} A${R},${R} 0 ${large},1 ${x2.toFixed(2)},${y2.toFixed(2)} Z" fill="${s.color}"><title>${s.lbl}: ${(pct*100).toFixed(1)}%</title></path>`;
+    return{...s,pct};
   });
-  const cl=centerLabel||N(total/1e6,1);
+  const cl=centerLabel!==undefined?centerLabel:total>=1e6?N(total/1e6,1):N(total,0);
   const cs=centerSub||'MB';
-  const svg=`<svg width="150" height="150" viewBox="0 0 150 150">
-    <circle cx="${cx}" cy="${cy}" r="${R+4}" fill="#F8FAFF"/>
-    ${arcs.map(a=>a.path?`<path d="${a.path}" fill="${a.color}"><title>${a.lbl}: ${N(a.val/1e6,2)} MB (${(a.pct*100).toFixed(1)}%)</title></path>`:``).join('')}
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="140" height="140" viewBox="0 0 140 140" style="flex-shrink:0">
+    <circle cx="${cx}" cy="${cy}" r="${R+6}" fill="#F1F5FD"/>
+    ${arcsSvg}
     <circle cx="${cx}" cy="${cy}" r="${r}" fill="white"/>
-    <text x="${cx}" y="${cy-4}" text-anchor="middle" font-size="13" fill="#0F172A" font-family="Prompt" font-weight="700">${cl}</text>
-    <text x="${cx}" y="${cy+12}" text-anchor="middle" font-size="9" fill="#94A3B8" font-family="Sarabun">${cs}</text>
+    <text x="${cx}" y="${cy-2}" text-anchor="middle" font-size="12" fill="#0F172A" font-family="Prompt,sans-serif" font-weight="700">${cl}</text>
+    <text x="${cx}" y="${cy+13}" text-anchor="middle" font-size="9" fill="#94A3B8" font-family="Sarabun,sans-serif">${cs}</text>
   </svg>`;
-  const legend=segments.filter(s=>s.val>0).map(s=>`
-    <div class="donut-leg-row">
-      <div class="donut-leg-dot" style="background:${s.color}"></div>
-      <div class="donut-leg-lbl">${s.lbl}</div>
-      <div style="display:flex;flex-direction:column;align-items:flex-end">
-        <div class="donut-leg-val">${N(s.val/1e6,2)}</div>
+  const legend=arcData.filter(s=>s.val>0).map(s=>`
+    <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px">
+      <div style="width:10px;height:10px;border-radius:3px;background:${s.color};flex-shrink:0"></div>
+      <div style="font-size:12px;color:var(--txt2);flex:1">${s.lbl}</div>
+      <div style="text-align:right">
+        <div style="font-size:12px;font-weight:600;font-family:'Prompt',sans-serif;color:var(--txt)">${N(s.val/1e6,2)}</div>
         <div style="font-size:10px;color:var(--txt4)">${(s.pct*100).toFixed(1)}%</div>
       </div>
     </div>`).join('');
-  el.innerHTML=`<div class="donut-wrap">${svg}<div class="donut-legend">${legend}</div></div>`;
+  el.innerHTML=`<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">${svg}<div style="flex:1;min-width:120px">${legend}</div></div>`;
 }
 
 // ─── CAPACITY ─────────────────────────────────────────────────
@@ -1639,9 +1646,14 @@ function exportData(){const blob=new Blob([JSON.stringify({logistics:DB,capacity
 // ─── INIT RENDER ─────────────────────────────────────────────
 initDatePicker();
 buildMonthBar();
-rDashboard();
 rAlerts();
 rCap();
+// ใช้ requestAnimationFrame เพื่อให้ DOM paint ก่อน SVG จะรู้ขนาด
+requestAnimationFrame(()=>{
+  setTimeout(()=>{
+    rDashboard();
+  }, 50);
+});
 </script>
 </body>
 </html>
