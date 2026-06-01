@@ -339,13 +339,15 @@ tr:hover td{background:var(--b100)}
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
           Capacity ภาพรวมทุกคลัง
         </div>
-        <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+          <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--txt3)"><span style="width:8px;height:8px;border-radius:50%;background:#8B5CF6;display:inline-block"></span>ยังไม่ได้กรอก</div>
           <div class="legend-row"><div class="legend-dot" style="background:var(--grn)"></div>&lt;80%</div>
           <div class="legend-row"><div class="legend-dot" style="background:var(--acc)"></div>80–95%</div>
           <div class="legend-row"><div class="legend-dot" style="background:var(--red)"></div>&gt;95%</div>
         </div>
       </div>
       <div id="dash-cap-bars"></div>
+      <div id="cap-missing-notice" style="margin-top:10px"></div>
     </div>
     <div class="g2">
       <div class="panel">
@@ -733,8 +735,11 @@ function buildMonthBar(){
   }
   months.forEach(({yr,mo,hasData})=>{
     const btn=document.createElement('button');
+    const capMiss=!hasAnyCap(yr,mo);
+    const isFuture=yr===CY&&mo>CM;
     btn.className='mb-item '+(hasData?'has-data':'no-data');
-    btn.textContent=MO[mo]+" '"+String(yr).slice(2);
+    const capDot=(!isFuture&&capMiss)?`<span style="display:inline-block;width:6px;height:6px;background:#8B5CF6;border-radius:50%;margin-left:4px;vertical-align:middle" title="ยังไม่ได้กรอก Capacity"></span>`:'';
+    btn.innerHTML=MO[mo]+" '"+String(yr).slice(2)+capDot;
     btn.onclick=()=>selectMonth(yr,mo);
     if(yr===dispYr&&mo===dispMo&&viewMode==='month')btn.classList.add('active');
     bar.appendChild(btn);
@@ -879,6 +884,24 @@ function rCap(){
   if(de)de.innerHTML=bars.map(b=>`<div class="br"><div class="bl">${b.l}</div><div class="bt"><div class="prog-fill ${pCls(b.p)}" style="height:100%;width:${Math.min(100,(b.p||0)*100).toFixed(1)}%;border-radius:4px"></div></div><div class="bv" style="color:${pCol(b.p)};font-family:'Prompt',sans-serif;font-size:14px">${pLbl(b.p)}</div></div>`).join('');
   const capA=[pHQP,pHQT,pMDC,pTKS,pBP].filter(p=>p>=0.80).length;
   const el=document.getElementById('cap-cnt');if(capA){el.textContent=capA;el.style.display='inline';}else el.style.display='none';
+
+  // แสดง notice ในหน้า dashboard ว่าเดือนนี้ยังไม่ได้กรอก Capacity
+  const mc=missCap(dispYr,dispMo);
+  const noticeEl=document.getElementById('cap-missing-notice');
+  if(noticeEl){
+    if(mc.length){
+      noticeEl.innerHTML=`<div style="background:#F5F3FF;border:1px solid #DDD6FE;border-radius:10px;padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="font-size:16px">🏭</span>
+        <div style="flex:1">
+          <span style="font-size:13px;font-weight:600;color:#5B21B6">${MOF[dispMo]} ${dispYr} — ยังไม่ได้กรอก Capacity: </span>
+          ${mc.map(m=>`<span style="background:#EDE9FE;color:#6D28D9;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:500;margin-right:4px">${m}</span>`).join('')}
+        </div>
+        <button onclick="sw('capacity',document.querySelectorAll('.nb')[1])" style="padding:6px 14px;background:#7C3AED;border:none;border-radius:8px;color:white;font-size:12px;font-weight:600;cursor:pointer;font-family:'Sarabun',sans-serif">กรอก Capacity →</button>
+      </div>`;
+    } else {
+      noticeEl.innerHTML='';
+    }
+  }
 }
 
 function loadCap(){
@@ -906,6 +929,23 @@ function saveCap(){
 function miss(yr,mo){
   const d=(DB[yr]||{})[mo]||{};
   return[['rev','Revenue'],['inv','Inventory'],['ord','Orders'],['cbkk','Cost BKK'],['cupc','Cost UPC'],['stor','Storage'],['wd','Working Days']].filter(c=>d[c[0]]===null||d[c[0]]===undefined).map(c=>c[1]);
+}
+
+function missCap(yr,mo){
+  const d=getCD(yr,mo);
+  const checks=[
+    [d.hqPU,'HQ — Pallet ใช้อยู่'],
+    [d.hqTU,'HQ — Tote ใช้อยู่'],
+    [d.mdcPU,'MDC — Pallet ใช้อยู่'],
+    [d.tksPU,'TKS — Pallet ใช้อยู่'],
+    [d.bpPU,'บางปู — Pallet ใช้อยู่'],
+  ];
+  return checks.filter(c=>c[0]===null||c[0]===undefined).map(c=>c[1]);
+}
+
+function hasAnyCap(yr,mo){
+  const d=getCD(yr,mo);
+  return d.hqPU!=null||d.mdcPU!=null||d.tksPU!=null||d.bpPU!=null;
 }
 
 // ─── BAR ROW ─────────────────────────────────────────────────
@@ -1023,25 +1063,97 @@ function rLineAll(){
 }
 
 function rAlerts(){
-  let cnt=0,html='';
+  let cnt=0;
+  let html_logistics='', html_cap_miss='', html_cap_warn='';
   const allMos=[];
   for(const yr of [2025,2026]){
-    const yrd=DB[yr]||{};
     for(let m=1;m<=12;m++){
       if(yr===CY&&m>CM)continue;
       allMos.push({yr,mo:m});
     }
   }
+
   allMos.forEach(({yr,mo})=>{
+    // 1) ข้อมูล Logistics ที่ขาด
     const ms=miss(yr,mo);
-    if(ms.length){cnt++;html+=`<div class="alert-c"><div class="a-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div><div><div class="a-title">${MOF[mo]} ${yr} — ขาดข้อมูล ${ms.length} รายการ</div><div class="a-desc">${ms.join(' · ')}</div></div><button class="a-btn" onclick="goFill(${yr},${mo})">กรอกข้อมูล</button></div>`;}
+    if(ms.length){
+      cnt++;
+      html_logistics+=`<div class="alert-c" style="border-left-color:#3B82F6">
+        <div class="a-ico" style="background:#EFF6FF">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#3B82F6" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
+        <div style="flex:1">
+          <div class="a-title">${MOF[mo]} ${yr} — ขาดข้อมูล Logistics ${ms.length} รายการ</div>
+          <div class="a-desc" style="margin-top:4px">${ms.map(m=>`<span style="background:#EFF6FF;color:#1E4D8C;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:500;margin-right:4px">${m}</span>`).join('')}</div>
+        </div>
+        <button class="a-btn" onclick="goFill(${yr},${mo})">กรอกข้อมูล</button>
+      </div>`;
+    }
+
+    // 2) Capacity ที่ยังไม่ได้กรอกเลย
+    const mc=missCap(yr,mo);
+    if(mc.length){
+      cnt++;
+      html_cap_miss+=`<div class="alert-c" style="border-left-color:#8B5CF6">
+        <div class="a-ico" style="background:#F5F3FF">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        </div>
+        <div style="flex:1">
+          <div class="a-title">${MOF[mo]} ${yr} — ยังไม่ได้กรอก Capacity ${mc.length} รายการ</div>
+          <div class="a-desc" style="margin-top:4px">${mc.map(m=>`<span style="background:#F5F3FF;color:#6D28D9;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:500;margin-right:4px">${m}</span>`).join('')}</div>
+        </div>
+        <button class="a-btn" style="background:#7C3AED" onclick="selectMonth(${yr},${mo});sw('capacity',document.querySelectorAll('.nb')[1])">กรอก Capacity</button>
+      </div>`;
+    }
+
+    // 3) Capacity ที่เกิน 80%
     const cd=getCD(yr,mo);
-    [{l:'HQ Pallet',p:cd.hqPC?(cd.hqPU||0)/cd.hqPC:0},{l:'HQ Tote',p:cd.hqTC?(cd.hqTU||0)/cd.hqTC:0},{l:'MDC',p:cd.mdcPC?(cd.mdcPU||0)/cd.mdcPC:0},{l:'TKS',p:cd.tksPC?(cd.tksPU||0)/cd.tksPC:0},{l:'บางปู',p:cd.bpPC?(cd.bpPU||0)/cd.bpPC:0}]
-    .filter(c=>c.p>=0.80).forEach(c=>{cnt++;const col=c.p>=0.95?'#EF4444':'#F59E0B';html+=`<div class="alert-c" style="border-left-color:${col}"><div class="a-ico" style="background:${c.p>=0.95?'#FEE2E2':'#FEF3C7'}"><svg viewBox="0 0 24 24" fill="none" stroke="${col}" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div><div><div class="a-title">${MOF[mo]} — ${c.l} ใช้ไป <span style="color:${col}">${(c.p*100).toFixed(1)}%</span></div><div class="a-desc">Capacity ใกล้เต็ม กรุณาวางแผนขยาย</div></div><button class="a-btn" style="background:${col}" onclick="sw('capacity',document.querySelectorAll('.nb')[1])">ดู Capacity</button></div>`;});
+    [{l:'HQ Pallet',p:cd.hqPC?(cd.hqPU||0)/cd.hqPC:0},
+     {l:'HQ Tote',p:cd.hqTC?(cd.hqTU||0)/cd.hqTC:0},
+     {l:'MDC',p:cd.mdcPC?(cd.mdcPU||0)/cd.mdcPC:0},
+     {l:'TKS',p:cd.tksPC?(cd.tksPU||0)/cd.tksPC:0},
+     {l:'บางปู',p:cd.bpPC?(cd.bpPU||0)/cd.bpPC:0}]
+    .filter(c=>c.p>=0.80).forEach(c=>{
+      cnt++;
+      const col=c.p>=0.95?'#EF4444':'#F59E0B';
+      const bg=c.p>=0.95?'#FEE2E2':'#FEF3C7';
+      const lv=c.p>=0.95?'⚠️ วิกฤต':'⚠️ เฝ้าระวัง';
+      html_cap_warn+=`<div class="alert-c" style="border-left-color:${col}">
+        <div class="a-ico" style="background:${bg}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="${col}" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        </div>
+        <div style="flex:1">
+          <div class="a-title">${MOF[mo]} ${yr} — ${c.l} ใช้ไป <span style="color:${col};font-family:'Prompt',sans-serif">${(c.p*100).toFixed(1)}%</span> [${lv}]</div>
+          <div class="a-desc">Capacity ใกล้เต็ม — กรุณาวางแผนขยายพื้นที่หรือโอนสินค้าออก</div>
+        </div>
+        <button class="a-btn" style="background:${col}" onclick="selectMonth(${yr},${mo});sw('capacity',document.querySelectorAll('.nb')[1])">ดู Capacity</button>
+      </div>`;
+    });
   });
-  if(!cnt)html=`<div style="text-align:center;padding:60px 20px"><div style="font-size:56px;margin-bottom:16px">✅</div><div style="font-family:'Prompt',sans-serif;font-size:20px;font-weight:700;color:#0F172A;margin-bottom:8px">ไม่มีการแจ้งเตือน</div><div style="font-size:14px;color:#64748B">ข้อมูลครบถ้วนและ Capacity ปลอดภัย</div></div>`;
+
+  // สร้าง HTML แบ่งหมวด
+  let html='';
+  const secTitle=(icon,title,col,count)=>`<div style="display:flex;align-items:center;gap:10px;margin:20px 0 10px;padding-bottom:8px;border-bottom:2px solid ${col}20">
+    <span style="font-size:20px">${icon}</span>
+    <span style="font-family:'Prompt',sans-serif;font-size:14px;font-weight:700;color:${col}">${title}</span>
+    <span style="background:${col}20;color:${col};border-radius:10px;padding:2px 10px;font-size:12px;font-weight:700">${count} รายการ</span>
+  </div>`;
+
+  if(html_logistics){html+=secTitle('📋','ข้อมูล Logistics ที่ยังไม่ครบ','#2563B0',html_logistics.split('alert-c').length-1)+html_logistics;}
+  if(html_cap_miss){html+=secTitle('🏭','Capacity ที่ยังไม่ได้กรอกข้อมูล','#7C3AED',html_cap_miss.split('alert-c').length-1)+html_cap_miss;}
+  if(html_cap_warn){html+=secTitle('⚠️','Capacity ใกล้เต็ม — ต้องดำเนินการ','#DC2626',html_cap_warn.split('alert-c').length-1)+html_cap_warn;}
+
+  if(!cnt){
+    html=`<div style="text-align:center;padding:60px 20px">
+      <div style="font-size:56px;margin-bottom:16px">✅</div>
+      <div style="font-family:'Prompt',sans-serif;font-size:20px;font-weight:700;color:#0F172A;margin-bottom:8px">ไม่มีการแจ้งเตือน</div>
+      <div style="font-size:14px;color:#64748B">ข้อมูล Logistics ครบถ้วน และ Capacity ของทุกคลังปลอดภัย</div>
+    </div>`;
+  }
+
   document.getElementById('alerts-body').innerHTML=html;
-  const el=document.getElementById('a-cnt');if(cnt){el.textContent=cnt;el.style.display='inline';}else el.style.display='none';
+  const el=document.getElementById('a-cnt');
+  if(cnt){el.textContent=cnt;el.style.display='inline';}else el.style.display='none';
 }
 
 function rHist(){
